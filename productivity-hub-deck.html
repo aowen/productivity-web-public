@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Productivity Hub — Architecture &amp; Overview</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --teal: oklch(0.72 0.14 180);
+    --teal-muted: oklch(0.72 0.14 180 / 0.12);
+    --amber: oklch(0.78 0.12 75);
+    --amber-muted: oklch(0.78 0.12 75 / 0.12);
+    --rose: oklch(0.65 0.16 15);
+    --rose-muted: oklch(0.65 0.16 15 / 0.12);
+    --bg: #09090b;
+    --bg-card: #18181b;
+    --bg-card-hover: #27272a;
+    --text: #fafafa;
+    --text-muted: #a1a1aa;
+    --border: #27272a;
+    --font-sans: 'Inter', system-ui, sans-serif;
+    --font-display: 'DM Serif Display', serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  /* Slide system */
+  .deck { position: relative; width: 100vw; height: 100vh; }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 6vh 8vw;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+  }
+
+  .slide.active { opacity: 1; pointer-events: auto; }
+
+  /* Typography */
+  h1 {
+    font-family: var(--font-display);
+    font-size: clamp(2.5rem, 5vw, 4.5rem);
+    line-height: 1.1;
+    margin-bottom: 1.5rem;
+    letter-spacing: -0.01em;
+  }
+
+  h2 {
+    font-family: var(--font-display);
+    font-size: clamp(1.8rem, 3.5vw, 3rem);
+    line-height: 1.15;
+    margin-bottom: 1.25rem;
+  }
+
+  h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--teal);
+    margin-bottom: 0.5rem;
+  }
+
+  p, li {
+    font-size: clamp(1rem, 1.5vw, 1.25rem);
+    line-height: 1.6;
+    color: var(--text-muted);
+  }
+
+  ul { list-style: none; margin-top: 0.5rem; }
+  ul li { padding: 0.35rem 0; padding-left: 1.5rem; position: relative; }
+  ul li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.75rem;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--teal);
+  }
+
+  strong { color: var(--text); font-weight: 600; }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    padding: 0.15em 0.45em;
+    border-radius: 4px;
+    color: var(--teal);
+  }
+
+  pre {
+    font-family: var(--font-mono);
+    font-size: clamp(0.8rem, 1.2vw, 1rem);
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.5rem 2rem;
+    margin: 1rem 0;
+    line-height: 1.7;
+    overflow-x: auto;
+    color: var(--text-muted);
+  }
+
+  pre .hl { color: var(--teal); }
+  pre .comment { color: #52525b; }
+  pre .str { color: var(--amber); }
+
+  /* Grid layouts */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2.5rem;
+    margin-top: 1.5rem;
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 2rem;
+    margin-top: 1.5rem;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.75rem;
+  }
+
+  .card h4 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  .card p, .card li { font-size: 0.95rem; }
+
+  .card.teal { border-color: oklch(0.72 0.14 180 / 0.3); background: oklch(0.72 0.14 180 / 0.05); }
+  .card.amber { border-color: oklch(0.78 0.12 75 / 0.3); background: oklch(0.78 0.12 75 / 0.05); }
+  .card.rose { border-color: oklch(0.65 0.16 15 / 0.3); background: oklch(0.65 0.16 15 / 0.05); }
+
+  .accent-teal { color: var(--teal); }
+  .accent-amber { color: var(--amber); }
+  .accent-rose { color: var(--rose); }
+
+  /* Flow diagram */
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 1.5rem 0;
+    flex-wrap: wrap;
+  }
+
+  .flow-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.5rem;
+    text-align: center;
+    min-width: 140px;
+  }
+
+  .flow-box .label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+  }
+
+  .flow-box .value {
+    font-family: var(--font-mono);
+    font-size: 0.95rem;
+    color: var(--teal);
+  }
+
+  .flow-arrow {
+    font-size: 1.5rem;
+    color: var(--text-muted);
+  }
+
+  /* Table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    font-size: 0.95rem;
+  }
+
+  th {
+    text-align: left;
+    padding: 0.75rem 1rem;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+  }
+
+  td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+
+  td:first-child { color: var(--text); font-weight: 500; }
+
+  /* Tag */
+  .tag {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    border: 1px solid;
+  }
+
+  .tag.teal { border-color: oklch(0.72 0.14 180 / 0.4); color: var(--teal); background: var(--teal-muted); }
+  .tag.amber { border-color: oklch(0.78 0.12 75 / 0.4); color: var(--amber); background: var(--amber-muted); }
+  .tag.rose { border-color: oklch(0.65 0.16 15 / 0.4); color: var(--rose); background: var(--rose-muted); }
+
+  /* Nav */
+  .nav {
+    position: fixed;
+    bottom: 2rem;
+    right: 3rem;
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    z-index: 100;
+  }
+
+  .nav button {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .nav button:hover { background: var(--bg-card-hover); }
+  .nav button:disabled { opacity: 0.3; cursor: default; }
+
+  .nav .counter {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    min-width: 4rem;
+    text-align: center;
+  }
+
+  /* Progress bar */
+  .progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    background: var(--teal);
+    transition: width 0.4s ease;
+    z-index: 100;
+  }
+
+  /* Subtle bg elements */
+  .bg-dots {
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(circle, #27272a 1px, transparent 1px);
+    background-size: 32px 32px;
+    opacity: 0.3;
+    pointer-events: none;
+  }
+
+  /* Subtitle */
+  .subtitle {
+    font-size: clamp(1.1rem, 1.8vw, 1.4rem);
+    color: var(--text-muted);
+    max-width: 600px;
+    line-height: 1.5;
+  }
+
+  /* Idea cards */
+  .idea-num {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    color: var(--border);
+    margin-bottom: 0.5rem;
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+<img id="corner-logo" src="logo.png" alt="Productivity Hub" style="position: fixed; top: 2rem; right: 3rem; width: 120px; opacity: 0; z-index: 100; pointer-events: none; transition: opacity 0.4s ease; filter: brightness(1.3);" />
+<div class="bg-dots"></div>
+
+<div class="deck" id="deck">
+
+  <!-- Slide 1: Title -->
+  <div class="slide active">
+    <img src="logo.png" alt="Productivity Hub" style="width: 180px; margin-bottom: 1.5rem; filter: drop-shadow(0 0 20px oklch(0.72 0.14 180 / 0.5)) drop-shadow(0 0 40px oklch(0.72 0.14 180 / 0.25)) brightness(1.15);" />
+    <h1>Productivity Hub</h1>
+    <p class="subtitle">A modular applet platform for internal utilities — purpose-built to be extended by anyone on the team.</p>
+    <div style="margin-top: 2.5rem; display: flex; gap: 1rem;">
+      <span class="tag amber">HubSpot</span>
+      <span class="tag amber">BigQuery</span>
+      <span class="tag teal">Claude AI</span>
+      <span class="tag rose">Scoir</span>
+      <span class="tag rose">Slack</span>
+    </div>
+  </div>
+
+  <!-- Slide 2: The Problem -->
+  <div class="slide">
+    <h3>The Problem</h3>
+    <h2>Why not just use what we have?</h2>
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; gap: 1.25rem; margin-top: 1rem;">
+      <div class="card" style="border-color: oklch(0.65 0.16 15 / 0.2);">
+        <h4 style="color: var(--text-muted); font-size: 1rem;">Looker / Looker Studio</h4>
+        <ul>
+          <li>Read-only &mdash; can't drive action</li>
+          <li>No APIs, workflows, or AI</li>
+          <li>Filters and charts, not tools</li>
+          <li>Tied to warehouse data; can't pull live CRM state</li>
+        </ul>
+      </div>
+      <div class="card" style="border-color: oklch(0.65 0.16 15 / 0.2);">
+        <h4 style="color: var(--text-muted); font-size: 1rem;">Admin Tools in Product</h4>
+        <ul>
+          <li><strong>Competes with product work</strong> for engineering time</li>
+          <li>Coupled to the product release cycle</li>
+          <li>Adds surface area to the core product</li>
+          <li>Non-eng teams can't iterate without filing tickets</li>
+        </ul>
+      </div>
+      <div class="card" style="border-color: oklch(0.65 0.16 15 / 0.2);">
+        <h4 style="color: var(--text-muted); font-size: 1rem;">HubSpot</h4>
+        <ul>
+          <li>Shows raw activity, not synthesized insights</li>
+          <li>AI limited to HubSpot data only</li>
+          <li>Can't combine with Scoir or other sources</li>
+          <li>Generic CRM views, not purpose-built workflows</li>
+        </ul>
+      </div>
+      <div class="card" style="border-color: oklch(0.65 0.16 15 / 0.2);">
+        <h4 style="color: var(--text-muted); font-size: 1rem;">Claude Cowork</h4>
+        <ul>
+          <li>One person, one machine &mdash; results aren't shared</li>
+          <li>No persistent UI &mdash; every task starts from scratch</li>
+          <li>No shared connectors &mdash; each person configures their own</li>
+          <li>Great for ad hoc tasks, not team-wide tools</li>
+        </ul>
+      </div>
+      <div class="card teal">
+        <h4 style="font-size: 1rem;">Productivity Hub</h4>
+        <ul>
+          <li><strong>AI-native</strong> &mdash; Claude summarizes and suggests</li>
+          <li><strong>Any data source</strong> &mdash; HubSpot, Scoir, Slack in real time</li>
+          <li><strong>Custom logic</strong> &mdash; scoring, classification, workflows</li>
+          <li><strong>Decoupled</strong> &mdash; ships independently from the product</li>
+          <li><strong>Shared</strong> &mdash; one tool the whole team uses</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 3: Current Applets -->
+  <div class="slide">
+    <h3>Current Applets</h3>
+    <h2>Proofs-of-Concept</h2>
+    <div class="grid-2" style="margin-top: 1rem;">
+      <div class="card teal">
+        <h4>Deal Planner</h4>
+        <p>Helps reps focus on the deals that matter most right now &mdash; so nothing slips and pipeline reviews take minutes instead of hours.</p>
+        <ul>
+          <li><strong>Focus scoring</strong> &mdash; prioritizes deals by urgency</li>
+          <li><strong>AI comms summary</strong> &mdash; Claude reads latest emails and summarizes where you left off</li>
+          <li><strong>Suggested next steps</strong> &mdash; AI recommends what to do next</li>
+          <li><strong>Pipeline KPIs</strong> &mdash; value, days to close, stale deals at a glance</li>
+        </ul>
+      </div>
+      <div class="card amber">
+        <h4>K12 ICP</h4>
+        <p>Classifies every K-12 school into an ideal customer profile so sales knows exactly who to target and why &mdash; replacing gut feel with data-driven prioritization.</p>
+        <ul>
+          <li><strong>5 ICP profiles</strong> &mdash; automated school classification engine</li>
+          <li><strong>HubSpot enrichment</strong> &mdash; click any school to see CRM data</li>
+          <li><strong>Confidence scoring</strong> &mdash; high / medium / low per classification</li>
+          <li><strong>Filter &amp; export</strong> &mdash; slice by ICP, state, type, then download</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 4: Ideas (1 of 2) -->
+  <div class="slide">
+    <h3>What's next</h3>
+    <h2>Applet ideas</h2>
+    <div class="grid-3">
+      <div class="card">
+        <div class="idea-num">01</div>
+        <h4>Customer Onboarding 🚀</h4>
+        <p>Tailor onboarding to each customer persona &mdash; surface the services and features pertinent to the customer and guide CSMs through setup steps.</p>
+        <div style="margin-top: 0.5rem;"><span class="tag amber">HubSpot</span> <span class="tag rose">Scoir</span></div>
+      </div>
+      <div class="card">
+        <div class="idea-num">02</div>
+        <h4>College Presence Management 🏫</h4>
+        <p>AI-assisted content creation, hygiene audits, and quality scoring &mdash; flag stale profiles, missing details, and help colleges build compelling student-facing content.</p>
+        <div style="margin-top: 0.5rem;"><span class="tag rose">Scoir</span> <span class="tag teal">Claude</span></div>
+      </div>
+      <div class="card">
+        <div class="idea-num">03</div>
+        <h4>Ad Hoc Data Requests 🔍</h4>
+        <p>Free analysts from repetitive data pulls &mdash; AI answers questions directly from connected sources, generates a ticket when it can't, and identifies recurring themes that signal the need for a new applet.</p>
+        <div style="margin-top: 0.5rem;"><span class="tag amber">BigQuery</span> <span class="tag amber">HubSpot</span> <span class="tag teal">Claude</span></div>
+      </div>
+      <div class="card">
+        <div class="idea-num">04</div>
+        <h4>Customer Health &amp; Renewal Risk 💓</h4>
+        <p>Combine product engagement signals with the renewal pipeline &mdash; risk-score customers using feature adoption, support ticket volume, and deal timelines to give CS a single proactive view of churn risk.</p>
+        <div style="margin-top: 0.5rem;"><span class="tag amber">BigQuery</span> <span class="tag amber">HubSpot</span> <span class="tag teal">Claude</span></div>
+      </div>
+      <div class="card">
+        <div class="idea-num">05</div>
+        <h4>Support Ticket Triage 🎫</h4>
+        <p>Real-time ticket volume by category and owner, spike detection, AI-powered issue clustering, KB article or product suggestions, and an escalation tracker to close the support-to-engineering handoff gap.</p>
+        <div style="margin-top: 0.5rem;"><span class="tag amber">HubSpot</span> <span class="tag teal">Claude</span></div>
+      </div>
+      <div class="card" style="background: oklch(0.72 0.14 180 / 0.03); border-style: dashed; border-width: 2px; border-color: oklch(0.72 0.14 180 / 0.5);">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div class="idea-num">&#127942;</div>
+          <span style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--teal); opacity: 0.7;">End goal</span>
+        </div>
+        <h4>Tee Time Optimizer &#9971;</h4>
+        <p style="font-style: italic;">You have some time now. This applet checks the weather, cross-references your and co-worker's calendars, books tee-times, orders you a beer, and books an Uber to get you home after you break 100 on 18.</p>
+        <div style="margin-top: 0.5rem;"><span class="tag teal">Google Calendar</span> <span class="tag amber">Dark Sky</span> <span class="tag rose">Your conscience</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 5: Applet Channels -->
+  <div class="slide">
+    <h3>Coming Soon</h3>
+    <h2>Applet channels</h2>
+    <p>Ship experiments without breaking what works. Every applet supports two channels &mdash; <code>:latest</code> (stable) and <code>:next</code> (experimental). Because both channels run in production side-by-side, there&rsquo;s no need for a separate feature environment &mdash; <code>:next</code> <em>is</em> the preview, running against real data.</p>
+    <div class="flow" style="justify-content: center; margin: 2rem 0;">
+      <div class="flow-box" style="border-color: oklch(0.72 0.14 180 / 0.3);">
+        <div class="label">Enhance</div>
+        <div class="value" style="font-size: 0.85rem;">/enhance-applet</div>
+        <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">Fork into :next</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box" style="border-color: oklch(0.78 0.12 75 / 0.3);">
+        <div class="label">Test</div>
+        <div class="value" style="font-size: 0.85rem;">/deal-planner/next</div>
+        <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">Team plays with it</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box" style="border-color: oklch(0.65 0.16 15 / 0.3);">
+        <div class="label">Promote</div>
+        <div class="value" style="font-size: 0.85rem;">/promote-applet</div>
+        <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">:next becomes :latest</div>
+      </div>
+    </div>
+    <div class="grid-2" style="margin-top: 1rem;">
+      <div class="card teal">
+        <h4 class="accent-teal" style="font-family: var(--font-mono); font-size: 1rem;">/enhance-applet</h4>
+        <p style="margin-bottom: 0.75rem;">Create a <code>:next</code> channel for any applet</p>
+        <pre style="margin: 0; font-size: 0.85rem;"><span class="hl">/enhance-applet</span> <span class="str">"deal-planner"</span>
+
+<span class="comment"># Claude will:</span>
+<span class="comment"># 1. Copy the applet into a next/ channel</span>
+<span class="comment"># 2. Ask what you want to change</span>
+<span class="comment"># 3. Build the enhanced version</span>
+<span class="comment"># 4. Deploy alongside :latest</span></pre>
+      </div>
+      <div class="card">
+        <h4 style="margin-bottom: 0.75rem;">How it works</h4>
+        <pre style="margin: 0; font-size: 0.85rem;">app/sales/deal-planner/
+  page.tsx              <span class="comment"># :latest (unchanged)</span>
+  dashboard.tsx
+  <span class="hl">next/</span>                  <span class="comment"># :next channel</span>
+    <span class="hl">page.tsx</span>            <span class="comment"># enhanced version</span>
+    <span class="hl">dashboard.tsx</span></pre>
+        <ul style="margin-top: 0.75rem;">
+          <li><strong>Convention-based</strong> &mdash; a <code>next/</code> subdirectory is all it takes</li>
+          <li><strong>Zero config</strong> &mdash; Next.js routes it automatically</li>
+          <li><strong>Sidebar badge</strong> shows which applets have a :next channel</li>
+          <li><strong>Promote or discard</strong> &mdash; no leftover state</li>
+          <li><strong>No feature environment needed</strong> &mdash; test changes in production without risk, since :latest is untouched</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 6: Contributing — Build -->
+  <div class="slide">
+    <h3>Contributing</h3>
+    <h2>Build with Claude Code skills</h2>
+    <p>Project-embedded skills ship with the repo &mdash; anyone who clones it gets them automatically.</p>
+    <div class="grid-2" style="margin-top: 1.25rem;">
+      <div class="card teal">
+        <h4 class="accent-teal" style="font-family: var(--font-mono); font-size: 1rem;">/create-applet</h4>
+        <p style="margin-bottom: 0.75rem;">Scaffold a new dashboard or tool</p>
+        <pre style="margin: 0; font-size: 0.85rem;"><span class="hl">/create-applet</span> <span class="str">"a Slack channel
+analytics dashboard under ops"</span>
+
+<span class="comment"># Claude will:</span>
+<span class="comment"># 1. Check for overlapping applets</span>
+<span class="comment"># 2. Scaffold page.tsx + dashboard.tsx</span>
+<span class="comment"># 3. Wire up connectors &amp; components</span>
+<span class="comment"># 4. Follow all project conventions</span>
+<span class="comment"># 5. Verify the build passes</span></pre>
+      </div>
+      <div class="card amber">
+        <h4 class="accent-amber" style="font-family: var(--font-mono); font-size: 1rem;">/create-connector</h4>
+        <p style="margin-bottom: 0.75rem;">Add a new API integration</p>
+        <pre style="margin: 0; font-size: 0.85rem;"><span class="hl">/create-connector</span> <span class="str">"Slack"</span>
+
+<span class="comment"># Claude will:</span>
+<span class="comment"># 1. Check existing connectors</span>
+<span class="comment"># 2. Find &amp; install the official SDK</span>
+<span class="comment"># 3. Scaffold client.ts, types.ts, index.ts</span>
+<span class="comment"># 4. Update .env.example &amp; CLAUDE.md</span>
+<span class="comment"># 5. Verify the build passes</span></pre>
+      </div>
+    </div>
+    <div style="margin-top: 1.5rem;">
+      <h4 style="margin-bottom: 0.5rem;">What's already available</h4>
+      <table>
+        <tr><th>Layer</th><th>What you get</th></tr>
+        <tr><td>Connectors</td><td>HubSpot CRM data, Claude AI summaries &mdash; import and use</td></tr>
+        <tr><td>Components</td><td>StatCard, DataTable, ChartCard, shadcn/ui primitives</td></tr>
+        <tr><td>Layout</td><td>AppletPage header, sidebar nav &mdash; automatic</td></tr>
+        <tr><td>Design</td><td>OKLCH tokens, three accent colors, fonts &mdash; all set up</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Slide 7: Contributing — Iterate -->
+  <div class="slide">
+    <h3>Contributing</h3>
+    <h2>Iterate with Claude Code skills</h2>
+    <p>Improve existing applets safely &mdash; ship a <code>:next</code> version alongside <code>:latest</code>, then promote when ready.</p>
+    <div class="grid-2" style="margin-top: 1.25rem;">
+      <div class="card teal">
+        <h4 class="accent-teal" style="font-family: var(--font-mono); font-size: 1rem;">/enhance-applet</h4>
+        <p style="margin-bottom: 0.75rem;">Create a :next channel for safe iteration</p>
+        <pre style="margin: 0; font-size: 0.85rem;"><span class="hl">/enhance-applet</span> <span class="str">"deal-planner"</span>
+
+<span class="comment"># Claude will:</span>
+<span class="comment"># 1. Copy applet into a next/ channel</span>
+<span class="comment"># 2. Ask what you want to change</span>
+<span class="comment"># 3. Build the enhanced version</span>
+<span class="comment"># 4. Deploy alongside :latest</span></pre>
+      </div>
+      <div class="card amber">
+        <h4 class="accent-amber" style="font-family: var(--font-mono); font-size: 1rem;">/promote-applet</h4>
+        <p style="margin-bottom: 0.75rem;">Make :next the new :latest</p>
+        <pre style="margin: 0; font-size: 0.85rem;"><span class="hl">/promote-applet</span> <span class="str">"deal-planner"</span>
+
+<span class="comment"># Claude will:</span>
+<span class="comment"># 1. Show what changed</span>
+<span class="comment"># 2. Replace :latest with :next</span>
+<span class="comment"># 3. Clean up the next/ directory</span>
+<span class="comment"># 4. Verify the build passes</span></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 8: Connectors -->
+  <div class="slide">
+    <h3>Shared infrastructure</h3>
+    <h2>Connectors</h2>
+    <p>Singleton API clients in <code>lib/connectors/</code> &mdash; shared across all applets. No per-applet config needed.</p>
+    <div class="grid-2" style="margin-top: 1.5rem;">
+      <div class="card teal">
+        <h4 class="accent-teal">HubSpot</h4>
+        <p><code>lib/connectors/hubspot/</code></p>
+        <ul>
+          <li>Deals, contacts, companies, owners, pipelines</li>
+          <li>Email history via associations API</li>
+          <li>Search with filters (owner, pipeline, stage)</li>
+          <li>Record URL builder</li>
+        </ul>
+      </div>
+      <div class="card amber">
+        <h4 class="accent-amber">Anthropic (Claude AI)</h4>
+        <p><code>lib/connectors/anthropic/</code></p>
+        <ul>
+          <li><code>ask()</code> &mdash; simple text-in / text-out</li>
+          <li><code>getAnthropicClient()</code> &mdash; full SDK access</li>
+          <li>Used for communication summaries and suggested next steps</li>
+        </ul>
+      </div>
+    </div>
+    <div class="grid-3" style="margin-top: 1.5rem;">
+      <div class="card" style="border-style: dashed; opacity: 0.6;">
+        <h4 style="display: flex; align-items: center; gap: 0.5rem;">Scoir <span class="tag rose">Coming soon</span></h4>
+        <p>Admin actions from outside the product &mdash; manage content, trigger workflows, and configure settings without competing for core engineering time</p>
+      </div>
+      <div class="card" style="border-style: dashed; opacity: 0.6;">
+        <h4 style="display: flex; align-items: center; gap: 0.5rem;">BigQuery <span class="tag rose">Coming soon</span></h4>
+        <p>Analytics at scale &mdash; student engagement, customer adoption, ad hoc queries against the warehouse</p>
+      </div>
+      <div class="card" style="border-style: dashed; opacity: 0.6;">
+        <h4 style="display: flex; align-items: center; gap: 0.5rem;">Slack <span class="tag rose">Coming soon</span></h4>
+        <p>Channel history, thread summaries, cross-team communication insights</p>
+      </div>
+    </div>
+    <p style="margin-top: 1.25rem;">Need a new connector? Run <code>/create-connector "Slack"</code> &mdash; it scaffolds the client, types, and helpers following the singleton pattern, installs the SDK, and updates <code>.env.example</code>.</p>
+  </div>
+
+  <!-- Slide 9: Architecture Overview -->
+  <div class="slide">
+    <h3>Architecture</h3>
+    <h2>How it works</h2>
+    <div class="flow">
+      <div class="flow-box">
+        <div class="label">Applet</div>
+        <div class="value">page.tsx</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box">
+        <div class="label">Discovery</div>
+        <div class="value">applets.ts</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box">
+        <div class="label">Shell</div>
+        <div class="value">Sidebar + Layout</div>
+      </div>
+    </div>
+    <p style="margin-top: 1.5rem;">Drop a <code>page.tsx</code> in <code>app/&lt;category&gt;/&lt;slug&gt;/</code> and it automatically appears in the sidebar and home page. No routing config, no manifest, no registration.</p>
+    <pre><span class="comment">// That's it. This is a complete applet entry point.</span>
+app/
+  sales/
+    deal-planner/
+      <span class="hl">page.tsx</span>        <span class="comment">// server component &mdash; fetches data</span>
+      dashboard.tsx    <span class="comment">// client component &mdash; filters &amp; state</span>
+      deals-table.tsx  <span class="comment">// sub-component</span>
+    k12-icp-v2/
+      <span class="hl">page.tsx</span>
+      ...</pre>
+  </div>
+
+  <!-- Slide 10: Data Flow -->
+  <div class="slide">
+    <h3>Applet Pattern</h3>
+    <h2>Server-first data flow</h2>
+    <p>API keys and data fetching stay on the server &mdash; the browser only receives the rendered result. This means no tokens in client bundles, no CORS headaches, and every applet loads with its data already in hand.</p>
+    <div class="flow" style="justify-content: center; margin: 2rem 0;">
+      <div class="flow-box" style="border-color: oklch(0.72 0.14 180 / 0.3);">
+        <div class="label">Server</div>
+        <div class="value">page.tsx</div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Fetches data</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box" style="border-color: oklch(0.78 0.12 75 / 0.3);">
+        <div class="label">Client</div>
+        <div class="value">dashboard.tsx</div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Filters &amp; state</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box" style="border-color: oklch(0.65 0.16 15 / 0.3);">
+        <div class="label">Display</div>
+        <div class="value">Components</div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">StatCard, Table, Chart</div>
+      </div>
+    </div>
+    <pre><span class="comment">// page.tsx &mdash; server component</span>
+<span class="hl">export const dynamic</span> = <span class="str">"force-dynamic"</span>;
+
+<span class="hl">export default async function</span> DealPlanner() {
+  <span class="hl">const</span> deals = <span class="hl">await</span> getDeals(client);  <span class="comment">// server-side fetch</span>
+
+  <span class="hl">return</span> (
+    &lt;<span class="hl">AppletPage</span> title=<span class="str">"Deal Planner"</span>&gt;
+      &lt;<span class="hl">Dashboard</span> deals={deals} /&gt;
+    &lt;/<span class="hl">AppletPage</span>&gt;
+  );
+}</pre>
+  </div>
+
+  <!-- Slide 11: Design System -->
+  <div class="slide">
+    <h3>Design System</h3>
+    <h2>Shared UI components</h2>
+    <div class="grid-3">
+      <div class="card">
+        <h4>StatCard</h4>
+        <p>KPI display with accent colors</p>
+        <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem;">
+          <span class="tag teal">teal</span>
+          <span class="tag amber">amber</span>
+          <span class="tag rose">rose</span>
+        </div>
+      </div>
+      <div class="card">
+        <h4>DataTable</h4>
+        <p>TanStack React Table wrapper with sorting, pagination, expandable rows</p>
+      </div>
+      <div class="card">
+        <h4>ChartCard</h4>
+        <p>Recharts wrapper for bar charts, area charts, and more</p>
+      </div>
+    </div>
+    <div style="margin-top: 2rem;">
+      <h4 style="margin-bottom: 0.75rem;">Design tokens</h4>
+      <table>
+        <tr><th>Element</th><th>Value</th></tr>
+        <tr><td>Colors</td><td>OKLCH tokens &mdash; teal (action), amber (value), rose (alert)</td></tr>
+        <tr><td>Fonts</td><td>Geist Sans, Geist Mono, DM Serif Display</td></tr>
+        <tr><td>Framework</td><td>Tailwind 4 + shadcn/ui primitives</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- Slide 12: Scoir Ecosystem -->
+  <div class="slide">
+    <h3>Ecosystem</h3>
+    <h2>Part of Scoir&rsquo;s platform</h2>
+    <p>Productivity Hub can plug into the same authentication and authorization infrastructure that powers every Scoir app.</p>
+    <div class="flow" style="justify-content: center; margin: 1.5rem 0;">
+      <div class="flow-box" style="border-color: oklch(0.72 0.14 180 / 0.3);">
+        <div class="label">Identity</div>
+        <div class="value">Single sign-on</div>
+        <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">Existing Scoir login</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box" style="border-color: oklch(0.78 0.12 75 / 0.3);">
+        <div class="label">Session</div>
+        <div class="value">Shared token</div>
+        <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">Same across all apps</div>
+      </div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="flow-box" style="border-color: oklch(0.65 0.16 15 / 0.3);">
+        <div class="label">Access</div>
+        <div class="value">Role-based</div>
+        <div style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.25rem;">Per-user &amp; per-applet</div>
+      </div>
+    </div>
+    <div class="grid-2" style="margin-top: 1rem;">
+      <div class="card">
+        <h4>How auth works today</h4>
+        <p>All Scoir apps &mdash; admissions-web, student-web, counselor-web, and others &mdash; share the same single sign-on system. Log in once, and every app recognizes you. Each app checks your <strong>permissions</strong> to control what you can see and do.</p>
+      </div>
+      <div class="card teal">
+        <h4>How Productivity Hub fits in</h4>
+        <ul>
+          <li><strong>Same login</strong> &mdash; no separate account or credentials needed</li>
+          <li><strong>Permission-gated applets</strong> &mdash; sidebar only shows what you have access to</li>
+          <li><strong>Scoir data access</strong> &mdash; authenticated requests unlock product data alongside HubSpot and other sources</li>
+          <li><strong>Deep links to Scoir</strong> &mdash; applets that reference schools or colleges link directly into admissions-web or counselor-web</li>
+        </ul>
+      </div>
+    </div>
+    <div style="margin-top: 1.25rem; display: flex; gap: 2rem;">
+      <div>
+        <h4 style="margin-bottom: 0.35rem; font-size: 0.85rem;">Sibling apps in the ecosystem</h4>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+          <span class="tag teal">auth-web</span>
+          <span class="tag amber">admissions-web</span>
+          <span class="tag amber">student-web</span>
+          <span class="tag amber">counselor-web</span>
+          <span class="tag amber">parent-web</span>
+          <span class="tag amber">admin-web</span>
+          <span class="tag rose">productivity-web</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 13: Tech Stack -->
+  <div class="slide">
+    <h3>Under the Hood</h3>
+    <h2>Tech stack</h2>
+    <div class="grid-2">
+      <div>
+        <table>
+          <tr><th>Layer</th><th>Technology</th></tr>
+          <tr><td>Framework</td><td>Next.js 16, React 19</td></tr>
+          <tr><td>Styling</td><td>Tailwind 4, OKLCH tokens</td></tr>
+          <tr><td>Components</td><td>shadcn/ui, Recharts 3</td></tr>
+          <tr><td>Tables</td><td>TanStack React Table 8</td></tr>
+          <tr><td>Icons</td><td>Lucide React</td></tr>
+          <tr><td>CRM</td><td>@hubspot/api-client 13</td></tr>
+          <tr><td>AI</td><td>@anthropic-ai/sdk</td></tr>
+          <tr><td>Output</td><td>Standalone (Docker-ready)</td></tr>
+        </table>
+      </div>
+      <div>
+        <h4 style="margin-bottom: 0.75rem;">Getting started</h4>
+        <pre style="margin: 0;"><span class="hl">git clone</span> &lt;repo&gt;
+<span class="hl">npm install</span>
+<span class="hl">cp</span> .env.example .env.local
+<span class="comment"># Fill in HUBSPOT_ACCESS_TOKEN,
+# HUBSPOT_PORTAL_ID, ANTHROPIC_API_KEY</span>
+<span class="hl">npm run dev</span>
+<span class="comment"># Open http://localhost:3000</span></pre>
+        <div style="margin-top: 1.25rem;">
+          <h4 style="margin-bottom: 0.5rem;">Commands</h4>
+          <pre style="margin: 0;"><span class="hl">npm run dev</span>    <span class="comment"># Dev server</span>
+<span class="hl">npm run build</span>  <span class="comment"># Production build</span>
+<span class="hl">npm run lint</span>   <span class="comment"># ESLint</span></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 14: Close -->
+  <div class="slide">
+    <div style="max-width: 700px;">
+      <img src="logo.png" alt="Productivity Hub" style="width: 140px; margin-bottom: 1.5rem; filter: drop-shadow(0 0 20px oklch(0.72 0.14 180 / 0.5)) drop-shadow(0 0 40px oklch(0.72 0.14 180 / 0.25)) brightness(1.15);" />
+      <h1>Ship tools, not tickets.</h1>
+      <p class="subtitle" style="margin-top: 1rem;">The platform is live. The patterns are proven. Every new applet makes the whole system more valuable.</p>
+      <div style="margin-top: 2.5rem;">
+        <h4 style="margin-bottom: 0.75rem;">What we need</h4>
+        <ul>
+          <li><strong>Time/People to experiment</strong></li>
+          <li><strong>Stakeholder input</strong> &mdash; which applet ideas would move the needle most?</li>
+          <li><strong>Try it</strong> &mdash; clone the repo, run <code>/create-applet</code>, and see how fast you can ship</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Navigation -->
+<div class="nav">
+  <button id="prev" aria-label="Previous slide">&larr;</button>
+  <span class="counter" id="counter">1 / 14</span>
+  <button id="next" aria-label="Next slide">&rarr;</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let current = 0;
+
+  function show(i) {
+    slides[current].classList.remove('active');
+    current = Math.max(0, Math.min(total - 1, i));
+    slides[current].classList.add('active');
+    document.getElementById('counter').textContent = `${current + 1} / ${total}`;
+    document.getElementById('prev').disabled = current === 0;
+    document.getElementById('next').disabled = current === total - 1;
+    document.getElementById('progress').style.width = `${((current + 1) / total) * 100}%`;
+    document.getElementById('corner-logo').style.opacity = current === 0 ? '0' : '0.7';
+  }
+
+  document.getElementById('prev').addEventListener('click', () => show(current - 1));
+  document.getElementById('next').addEventListener('click', () => show(current + 1));
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); show(current + 1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); show(current - 1); }
+    if (e.key === 'Home') { e.preventDefault(); show(0); }
+    if (e.key === 'End') { e.preventDefault(); show(total - 1); }
+  });
+
+  // Touch support
+  let touchStartX = 0;
+  document.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; });
+  document.addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) > 50) show(current + (dx < 0 ? 1 : -1));
+  });
+
+  show(0);
+</script>
+
+</body>
+</html>
